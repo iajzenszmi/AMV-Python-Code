@@ -1,0 +1,108 @@
+Atmospheric motion vectors (AMVs) have been generated continuously from Multifunctional Transport Satellite 1 Replacement (MTSAT-1R) radiance data (imagery) since 2005, and more recently from MTSAT-2, which are operated by the Japan Meteorological Agency (JMA). These are the primary geostationary meteorological satellites observing the western Paci... simulation in python
+
+Below is a Python simulation of satellite-derived Atmospheric Motion Vectors (AMVs) inspired by the MTSAT/JMA workflow. It is a teaching/demo model, not the full operational JMA system.
+
+JMA’s MTSAT AMVs were derived from three successive images, and operationally included IR, VIS, WV, and SWIR AMVs from corresponding bands. MTSAT-1R began operations in 2005, and JMA later switched operational production to MTSAT-2, with hourly dissemination introduced around 2009–2010.
+
+This simulation does four things:
+
+    creates synthetic “cloud” imagery,
+
+    advects it with a known wind field,
+
+    estimates motion by block matching between frames,
+
+    plots the recovered AMVs over the image.
+
+import numpy as np
+    rng = np.random.default_rng(123)
+    img0n = np.clip(img0 + 0.02 * rng.standard_normal(img0.shape), 0, 1)
+    img1n = np.clip(img1 + 0.02 * rng.standard_normal(img1.shape), 0, 1)
+    img2n = np.clip(img2 + 0.02 * rng.standard_normal(img2.shape), 0, 1)
+
+    # Retrieve AMVs between successive frames
+    xs, ys, us, vs, qis = estimate_amvs(img0n, img1n, win=15, search=6, stride=16)
+
+    # Compare with "truth"
+    u_true = u[ys.astype(int), xs.astype(int)]
+    v_true = v[ys.astype(int), xs.astype(int)]
+    speed_err = np.sqrt((us - u_true)**2 + (vs - v_true)**2)
+
+    print("Retrieved vectors:", len(xs))
+    if len(xs) > 0:
+        print("Mean speed error (pixels/timestep): {:.3f}".format(np.mean(speed_err)))
+        print("Median speed error (pixels/timestep): {:.3f}".format(np.median(speed_err)))
+        print("Mean quality indicator proxy: {:.3f}".format(np.mean(qis)))
+
+    # -----------------------------
+    # Plot imagery + AMVs
+    # -----------------------------
+    fig, axes = plt.subplots(1, 3, figsize=(16, 5), constrained_layout=True)
+
+    axes[0].imshow(img0n, cmap="gray", origin="lower")
+    axes[0].set_title("Synthetic MTSAT-like Image t0")
+    axes[0].set_xlabel("x")
+    axes[0].set_ylabel("y")
+
+    axes[1].imshow(img1n, cmap="gray", origin="lower")
+    axes[1].set_title("Synthetic MTSAT-like Image t1")
+    axes[1].set_xlabel("x")
+    axes[1].set_ylabel("y")
+
+    axes[2].imshow(img1n, cmap="gray", origin="lower")
+    axes[2].quiver(xs, ys, us, vs, qis, scale=35, pivot='mid')
+    axes[2].set_title("Retrieved AMVs on t1")
+    axes[2].set_xlabel("x")
+    axes[2].set_ylabel("y")
+
+    plt.show()
+
+    # -----------------------------
+    # Plot error histogram
+    # -----------------------------
+    if len(speed_err) > 0:
+        plt.figure(figsize=(7, 4))
+        plt.hist(speed_err, bins=20, edgecolor='black')
+        plt.title("AMV Speed Error Histogram")
+        plt.xlabel("Vector error (pixels/timestep)")
+        plt.ylabel("Count")
+        plt.show()
+
+if __name__ == "__main__":
+    main()
+Console
+Run started
+Initializing environment
+Installing packages
+Running code
+Retrieved vectors: 119
+Mean speed error (pixels/timestep): 3.678
+Median speed error (pixels/timestep): 3.074
+Mean quality indicator proxy: 0.839
+Plot output
+Plot output
+Run completed in 20241ms
+
+How this maps to real AMVs:
+
+    Real AMVs are derived by tracking features such as clouds or water-vapor patterns through sequential satellite imagery, rather than by directly measuring wind.
+
+    The JMA MTSAT system used three successive images and separate channels/bands for different AMV products.
+
+    Operational systems also estimate height assignment and use quality indicators / thinning / bias control, which this toy simulator does only crudely.
+
+To make this more realistic, the next upgrades would be:
+
+    read real geostationary data from NetCDF/HDF5/GRIB,
+
+    use IR or water-vapor brightness temperature fields instead of synthetic clouds,
+
+    add a pressure/height assignment model,
+
+    implement triplet consistency checks using all three frames,
+
+    export vectors as lat/lon, u/v, pressure, QI.
+
+I can turn this into a real-data version for Himawari/MTSAT-style files next.
+
+
